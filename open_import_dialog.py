@@ -15,6 +15,39 @@ def maya_main_window():
     main_window_ptr = omui.MQtUtil.mainWindow()
     return wrapInstance(long(main_window_ptr), QtWidgets.QWidget)
 
+# secondary approach to insert image
+# possibly more powerful than simple QLabel approach
+# can draw also primitives, lines etc. 
+class CustomImageWidget(QtWidgets.QWidget):
+    def __init__(self, width, height, image_path, parent = None):
+        super(CustomImageWidget, self).__init__(parent)
+        self.set_size(width, height)
+        self.set_image(image_path)
+        self.set_background_color(QtCore.Qt.black)
+        
+        
+    def set_size(self, width, height):
+        self.setFixedSize(width, height) # no need for explicit update() as size change triggers it automatically
+        
+    def set_image(self, image_path):    
+        image = QtGui.QImage(image_path)
+        image = image.scaled(self.width(), self.height(), QtCore.Qt.IgnoreAspectRatio, QtCore.Qt.SmoothTransformation) # creates new instance, not applying size on current
+        
+        self.pixmap = QtGui.QPixmap()
+        self.pixmap.convertFromImage(image)
+        self.update()
+        
+    def set_background_color(self, color):
+        self.background_color = color
+        self.update()
+        
+    # override parent method
+    # called when displaying, resizing..
+    def paintEvent(self, event):
+        painter = QtGui.QPainter(self)
+        
+        painter.fillRect(0, 0, self.width(), self.height(), self.background_color)
+        painter.drawPixmap(self.rect(), self.pixmap)
 
 class OpenImportDialog(QtWidgets.QDialog):
     
@@ -64,15 +97,10 @@ class OpenImportDialog(QtWidgets.QDialog):
         self.close_btn = QtWidgets.QPushButton("Close")
         
     def create_title_label(self):
-        image_path = "{}".format(cmds.internalVar(userScriptDir=True)) + "\\images\\title_image.png"
+        image_path = "{}".format(cmds.internalVar(userScriptDir=True)) + "/images/title_image_with_alpha.png"
         
-        image = QtGui.QImage(image_path)
-        image = image.scaled(280, 60, QtCore.Qt.IgnoreAspectRatio, QtCore.Qt.SmoothTransformation) # creates new instance, not applying size on current
-        pixmap = QtGui.QPixmap()
-        pixmap.convertFromImage(image)
         
-        self.title_label = QtWidgets.QLabel("My awesome utility") # alt label for resource issues
-        self.title_label.setPixmap(pixmap)
+        self.title_label = CustomImageWidget(280, 60, image_path)
 
     def create_layout(self):
         file_path_layout = QtWidgets.QHBoxLayout()
