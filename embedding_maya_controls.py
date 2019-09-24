@@ -1,3 +1,5 @@
+from functools import partial
+
 from PySide2 import QtCore
 from PySide2 import QtGui
 from PySide2 import QtWidgets
@@ -48,44 +50,56 @@ class CustomColorButton(QtWidgets.QWidget):
         if color_slider_ptr:
             self._color_slider_widget = wrapInstance(long(color_slider_ptr), QtWidgets.QWidget) # wrapping pointer as a Widget
 
-        """ 3) Reparent the colorSliderGrp widget to this widget """
-        main_layout = QtWidgets.QVBoxLayout(self)
-        main_layout.setObjectName("main_layout")
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.addWidget(self._color_slider_widget) # reparenting widget from 'window' to CusomColorButton widget
-        # 'window' can be safely deleted at this point
+            """ 3) Reparent the colorSliderGrp widget to this widget """
+            main_layout = QtWidgets.QVBoxLayout(self)
+            main_layout.setObjectName("main_layout")
+            main_layout.setContentsMargins(0, 0, 0, 0)
+            main_layout.addWidget(self._color_slider_widget) # reparenting widget from 'window' to CusomColorButton widget
+            # 'window' can be safely deleted at this point
 
-        """ 4) Update the colorSliderGrp control name (used by Maya) """
-        # change parent of colorSlideGrp changed its name, Maya cannot use old one 
-        # pointer stays the same
-        self._name = omui.MQtUtil.fullName(long(color_slider_ptr))
-        # will look something like 'CustomColorButton|main_layout|colorSliderGrpX' - denotes hierchy, needs to be unique
-        # see setObjectName lines - names of the parent are used to concatenate unique name of the slider
+            """ 4) Update the colorSliderGrp control name (used by Maya) """
+            # change parent of colorSlideGrp changed its name, Maya cannot use old one 
+            # pointer stays the same
+            self._name = omui.MQtUtil.fullName(long(color_slider_ptr))
+            # will look something like 'CustomColorButton|main_layout|colorSliderGrpX' - denotes hierchy, needs to be unique
+            # see setObjectName lines - names of the parent are used to concatenate unique name of the slider
 
-        """ 5) Identify/store the colorSliderGrp’s child widgets (and hide if necessary)  """
-        # children = self._color_slider_widget.children()
-        # for child in children:  # 3 objects - label, slider, color picker (port)
-        #     print(child)
-        #     print(child.objectName())
-        # print('------')
-        
-        self._slider_widget = self._color_slider_widget.findChild(QtWidgets.QWidget, "slider")
-        self._color_widget = self._color_slider_widget.findChild(QtWidgets.QWidget, "port")
-        
-        # hide slider part of Maya colorSliderGrp
-        if self._slider_widget:
-            self._slider_widget.hide()
-        
+            """ 5) Identify/store the colorSliderGrp’s child widgets (and hide if necessary)  """
+            # children = self._color_slider_widget.children()
+            # for child in children:  # 3 objects - label, slider, color picker (port)
+            #     print(child)
+            #     print(child.objectName())
+            # print('------')
+            
+            self._slider_widget = self._color_slider_widget.findChild(QtWidgets.QWidget, "slider")
+            self._color_widget = self._color_slider_widget.findChild(QtWidgets.QWidget, "port")
+            
+            # hide slider part of Maya colorSliderGrp
+            if self._slider_widget:
+                self._slider_widget.hide()
+            
+            
+            cmds.colorSliderGrp(self._name, e=True, changeCommand=partial(self.on_color_changed)) # set change callback - anytime color changes, emits signal
+            
         cmds.deleteUI(window, window=True) # cleanup auxiliary window
 
     def set_size(self, width, height):
-        pass
+        self._color_slider_widget.setFixedWidth(width)
+        self._color_slider_widget.setFixedHeight(height)
 
     def set_color(self, color):
-        pass
+        color = QtGui.QColor(color)
+        
+        cmds.colorSliderGrp(self._name, e=True, rgbValue=(color.redF(), color.greenF(), color.blueF()))
+        self.on_color_changed()
 
     def get_color(self):
-        pass
+        # returns tuple of floats (eg (0.1, 0.3, 0.1))
+        # needs to use 'objectName' not only self._name !
+        color = cmds.colorSliderGrp(self._color_slider_widget.objectName(), q=True, rgbValue=True) 
+        color = QtGui.QColor(color[0] * 255, color[1] * 255, color[2] * 255) # conversion to int
+        
+        return color
 
     def on_color_changed(self, *args):
         self.color_changed.emit(self.get_color())
