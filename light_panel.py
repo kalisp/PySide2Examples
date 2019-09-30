@@ -10,6 +10,10 @@ import maya.mel as mel
 import maya.OpenMayaUI as omui
 
 
+from collections import defaultdict
+
+import custom_color_button # from custom_color_button.py - implemented example
+
 def maya_main_window():
     """
     Return the Maya main window widget as a Python object
@@ -28,6 +32,8 @@ class LightItem(QtWidgets.QWidget):
         super(LightItem, self).__init__(parent)
 
         self.setFixedHeight(26)
+        
+        self.shape_name = shape_name
 
         self.create_widgets()
         self.create_layout()
@@ -36,12 +42,29 @@ class LightItem(QtWidgets.QWidget):
     def create_widgets(self):
         self.light_type_btn = QtWidgets.QPushButton()
         self.light_type_btn.setFixedSize(20, 20)
+        self.light_type_btn.setFlat(True)
         
         self.light_visibility_btn = QtWidgets.QCheckBox()
         
         self.light_name_label = QtWidgets.QLabel("Placeholder")
         self.light_name_label.setFixedWidth(120)
         self.light_name_label.setAlignment(QtCore.Qt.AlignCenter)
+        
+        light_type = self.get_light_type()
+        if light_type in self.SUPPORTED_TYPES:
+            self.intensity_dsb = QtWidgets.QDoubleSpinBox()
+            self.intensity_dsb.setRange(0.0, 100.0)
+            self.intensity_dsb.setDecimals(3)
+            self.intensity_dsb.setSingleStep(0.1)
+            self.intensity_dsb.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
+            
+            self.color_btn = CustomColorButton()
+            
+            if light_type in self.EMIT_TYPES:
+                self.emit_diffuse_cb = QtWidgets.QCheckBox()
+                self.emit_specular_cb = QtWidgets.QCheckBox()
+        
+        self.update_values()
         
 
     def create_layout(self):
@@ -51,12 +74,74 @@ class LightItem(QtWidgets.QWidget):
         main_layout.addWidget(self.light_visibility_btn)
         main_layout.addWidget(self.light_name_label)
         
+        light_type = self.get_light_type()
+        if light_type in self.SUPPORTED_TYPES:
+            main_layout.addWidget(self.intensity_dsb)
+            main_layout.addSpacing(10)
+            main_layout.addWidget(self.color_btn)
+            
+            if light_type in self.EMIT_TYPES:
+                main_layout.addSpacing(34)
+                main_layout.addWidget(self.emit_diffuse_cb)
+                main_layout.addSpacing(50)
+                main_layout.addWidget(self.emit_specular_cb)
+        
         main_layout.addStretch()
         
 
     def create_connections(self):
         pass
+        
+    def update_values(self):
+        self.light_name_label.setText(self.get_transform_name())
+        self.light_type_btn.setIcon(self.get_light_type_icon())
+        self.light_visibility_btn.setChecked(self.is_visible())
+        
+        light_type = self.get_light_type()
+        if light_type in self.SUPPORTED_TYPES:
+            self.intensity_dsb.setValue(self.get_intensity())
+            self.color_btn.set_color(self.get_color())
+            
+            if light_type in self.EMIT_TYPES:
+                self.emit_diffuse_cb.setChecked(self.get_diffuse())
+                self.emit_specular_cb.setChecked(self.get_specular())
+        
+    def get_transform_name(self):
+        return cmds.listRelatives(self.shape_name, parent=True)[0]
+        
+    def get_light_type(self):
+        return cmds.objectType(self.shape_name)
+        
+    def get_light_type_icon(self):
+        light_type = self.get_light_type()
+        
+        if light_type in self.SUPPORTED_TYPES:
+            icon = QtGui.QIcon(":{}.svg".format(light_type))
+        else:
+            icon = QtGui.QIcon(":Light.png")
+            
+        return icon
+        
+    def get_attribute_value(self, name, attribute):
+        return cmds.getAttr('{}.{}'.format(name, attribute))
+        
+    def is_visible(self):
+        transform_name = self.get_transform_name()
+        return self.get_attribute_value(transform_name, 'visibility')
+        
+    def get_intensity(self):
+        return self.get_attribute_value(self.shape_name, 'intensity')
 
+    def get_color(self):
+        temp_color = self.get_attribute_value(self.shape_name, 'color')[0]
+        
+        return QtGui.QColor(temp_color[0] * 255, temp_color[1] * 255, temp_color[2] * 2)
+        
+    def get_diffuse(self):
+        return self.get_attribute_value(self.shape_name, 'emitDiffuse')
+
+    def get_specular(self):
+        return self.get_attribute_value(self.shape_name, 'emitSpecular')
 
 class LightPanel(QtWidgets.QDialog):
 
