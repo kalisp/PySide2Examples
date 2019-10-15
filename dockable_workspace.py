@@ -10,6 +10,7 @@ class WorkspaceControl(object):
         self.name = name
         self.widget = None
         
+        
     def create(self, label, widget, ui_script=None):
         """ Creates workspace control with specific name """
         cmds.workspaceControl(self.name, label=label)
@@ -63,13 +64,70 @@ class WorkspaceControl(object):
     def is_collapsed(self):
         """ Helper method, checks if self.name window is collapsed """
         cmds.workspaceControl(self.name, q=True, collapse=True)
+        
+class SampleUI(QtWidgets.QWidget):
+    """ Sample UI with QPushButton, parented by WorkspaceControl to be dockable """
+    
+    WINDOW_TITLE = "Sample UI"
+    UI_NAME = "SampleUI"
+    
+    ui_instance = None
+    
+    def __init__(self):
+        super(SampleUI, self).__init__()
+        
+        self.setObjectName(self.__class__.UI_NAME)
+        self.setMinimumSize(100, 100)
+        
+        self.create_widgets()
+        self.create_layout()
+        self.create_connections()
+        self.create_workspace_control()
+    
+    @classmethod
+    def get_workspace_control_name(cls):
+        return "{}WorkspaceControl".format(cls.UI_NAME)
+        
+    @classmethod
+    def display(cls):
+        """ Should be used in ui_script to restore after restart or in shelf button """
+        if cls.ui_instance:
+            cls.ui_instance.show_workspace_control()
+        else:
+            cls.ui_instance = SampleUI()
+        
+    def create_widgets(self):
+        self.apply_button = QtWidgets.QPushButton("Push It")
+        
+    def create_layout(self):
+        main_layout = QtWidgets.QHBoxLayout(self)
+        main_layout.setMargin(2)
+        main_layout.addStretch()
+        main_layout.addWidget(self.apply_button)
+        
+    def create_connections(self):
+        self.apply_button.clicked.connect(self.on_clicked)
+        
+    def create_workspace_control(self):
+        """ Create workspace control to parent itself """
+        self.workspace_control_instance = WorkspaceControl(self.get_workspace_control_name())
+        
+        if self.workspace_control_instance.exists():
+            self.workspace_control_instance.restore(self) # parent SimpleUI to existing workspace control
+        else:        
+            script = "from workspace_control import SampleUI\nSampleUI.display()"
+            self.workspace_control_instance.create(self.WINDOW_TITLE, self, ui_script=script) # actually creates workspace control widget
+        
+    def show_workspace_control(self):
+        self.workspace_control_instance.set_visible(True)
+        
+    def on_clicked(self):
+        print("Pushed")
 
 if __name__ == "__main__":
     
-    workspace_control_name = "MyWorkspaceControl"
+    workspace_control_name = SampleUI.get_workspace_control_name()
     if cmds.window(workspace_control_name, exists=True):
         cmds.deleteUI(workspace_control_name)
         
-    workspace_control = WorkspaceControl(workspace_control_name)
-    workspace_control.create(workspace_control_name, QtWidgets.QPushButton("Push It"))
-    workspace_control.set_label("Workspace Control")
+    sample_ui = SampleUI()
