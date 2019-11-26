@@ -6,25 +6,32 @@ from PySide2 import QtWidgets
 from shiboken2 import wrapInstance
 
 import maya.cmds as cmds
-import maya.mel as mel
 import maya.OpenMayaUI as omui
-
 
 from collections import defaultdict
 
+"""
+Shows dialog with a list of all lights in Maya scene. Items are editable.
+Changes to all lights could be done through a dialog. State of dialog is synchronized
+with content of a scene.
 
+Uses PySide2 to create dialog, uses maya.cmds to get list of lights etc.
+"""
 
 def maya_main_window():
     """
     Return the Maya main window widget as a Python object
+    Returns: Python object for mainWindow
+
     """
-    main_window_ptr = omui.MQtUtil.mainWindow()
+    main_window_ptr = omui.MQtUtil.mainWindow() # C pointer
     return wrapInstance(long(main_window_ptr), QtWidgets.QWidget)
 
 class CustomColorButton(QtWidgets.QWidget):
-
+    """
+    Custom color picker
+    """
     color_changed = QtCore.Signal(QtGui.QColor)
-
 
     def __init__(self, color=QtCore.Qt.white, parent=None):
         super(CustomColorButton, self).__init__(parent)
@@ -52,7 +59,7 @@ class CustomColorButton(QtWidgets.QWidget):
             main_layout.setContentsMargins(0, 0, 0, 0)
             main_layout.addWidget(self._color_slider_widget)
 
-            """ 4) Identify/store the colorSliderGrp’s child widgets (and hide if necessary)  """
+            """ 4) Identify/store the colorSliderGrpï¿½s child widgets (and hide if necessary)  """
             self._slider_widget = self._color_slider_widget.findChild(QtWidgets.QWidget, "slider")
             if self._slider_widget:
                 self._slider_widget.hide()
@@ -61,36 +68,72 @@ class CustomColorButton(QtWidgets.QWidget):
 
             cmds.colorSliderGrp(self.get_full_name(), e=True, changeCommand=partial(self.on_color_changed))
 
-
         cmds.deleteUI(window, window=True)
 
     def get_full_name(self):
+        """
+        Get full name of slider
+        Returns: string
+
+        """
         return omui.MQtUtil.fullName(long(self._color_slider_obj))
 
     def set_size(self, width, height):
+        """
+        Set size of icon
+        Args:
+            width:
+            height:
+
+        Returns:
+
+        """
         self._color_slider_widget.setFixedWidth(width)
         self._color_widget.setFixedHeight(height)
 
     def set_color(self, color):
+        """
+        Sets color if different from last, emits singal 'on_color_changed'
+        Args:
+            color:
+
+        Returns: None, emits signal
+
+        """
         color = QtGui.QColor(color)
         
-        print('new {} old {}'.format(color, self.get_color()))
+        #print('new {} old {}'.format(color, self.get_color()))
 
         if color != self.get_color():
             cmds.colorSliderGrp(self.get_full_name(), e=True, rgbValue=(color.redF(), color.greenF(), color.blueF()))
             self.on_color_changed()
 
     def get_color(self):
+        """
+        Gets color from picker
+        Returns: QtGui.QColor
+
+        """
         color = cmds.colorSliderGrp(self.get_full_name(), q=True, rgbValue=True)
 
         color = QtGui.QColor(color[0] * 255, color[1] * 255, color[2] * 255)
         return color
 
     def on_color_changed(self, *args):
+        """
+        Singal to be emitted when color changed
+        Args:
+            *args:
+
+        Returns: None
+
+        """
         self.color_changed.emit(self.get_color())
 
 class LightItem(QtWidgets.QWidget):
-
+    """
+    Item that describes light from scene in the list of Lights
+    """
     SUPPORTED_TYPES = ["ambientLight", "directionalLight", "pointLight", "spotLight"]
     EMIT_TYPES = ["directionalLight", "pointLight", "spotLight"]
     
@@ -113,18 +156,25 @@ class LightItem(QtWidgets.QWidget):
         self.create_script_jobs()
 
     def create_widgets(self):
+        """
+        Creates all widgets
+        Returns: None
+
+        """
+        # describes type of light, different icons
         self.light_type_btn = QtWidgets.QPushButton()
         self.light_type_btn.setFixedSize(20, 20)
         self.light_type_btn.setFlat(True)
-        
+        # highlights if light is visible
         self.light_visibility_btn = QtWidgets.QCheckBox()
-        
+        # placeholder for color picker
         self.light_name_label = QtWidgets.QLabel("Placeholder")
         self.light_name_label.setFixedWidth(120)
         self.light_name_label.setAlignment(QtCore.Qt.AlignCenter)
         
         light_type = self.get_light_type()
         if light_type in self.SUPPORTED_TYPES:
+            # describes intensity of Light
             self.intensity_dsb = QtWidgets.QDoubleSpinBox()
             self.intensity_dsb.setRange(0.0, 100.0)
             self.intensity_dsb.setDecimals(3)
@@ -133,14 +183,18 @@ class LightItem(QtWidgets.QWidget):
             
             self.color_btn = CustomColorButton()
             
-            if light_type in self.EMIT_TYPES:
-                self.emit_diffuse_cb = QtWidgets.QCheckBox()
-                self.emit_specular_cb = QtWidgets.QCheckBox()
+            if light_type in self.EMIT_TYPES: # limited set of properties for some types only
+                self.emit_diffuse_cb = QtWidgets.QCheckBox() # describes diffuse properties
+                self.emit_specular_cb = QtWidgets.QCheckBox() # describes specular properties
         
         self.update_values()
-        
 
     def create_layout(self):
+        """
+        All layout stuff
+        Returns: None
+
+        """
         main_layout = QtWidgets.QHBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(self.light_type_btn)
@@ -160,9 +214,13 @@ class LightItem(QtWidgets.QWidget):
                 main_layout.addWidget(self.emit_specular_cb)
         
         main_layout.addStretch()
-        
 
     def create_connections(self):
+        """
+        All connection from widgets to callbacks
+        Returns: None
+
+        """
         self.light_type_btn.clicked.connect(self.select_light)
         self.light_visibility_btn.toggled.connect(self.set_visibility)
         
@@ -176,7 +234,11 @@ class LightItem(QtWidgets.QWidget):
                 self.emit_specular_cb.toggled.connect(self.set_emit_specular)
         
     def update_values(self):
-        print("update_values " + self.get_transform_name())
+        """
+        Recalculate values of Light properties
+        Returns: Widget's properties are updated
+
+        """
         self.light_name_label.setText(self.get_transform_name())
         self.light_type_btn.setIcon(self.get_light_type_icon())
         self.light_visibility_btn.setChecked(self.is_visible())
@@ -213,8 +275,7 @@ class LightItem(QtWidgets.QWidget):
     def set_attribute_value(self, name, attribute, *args): 
         attr_name = "{}.{}".format(name, attribute) # full attribute name consists of node name + attribute
         cmds.setAttr(attr_name, *args) # sent variable count of attribute values
-        
-        
+
     def is_visible(self):
         transform_name = self.get_transform_name()
         return self.get_attribute_value(transform_name, 'visibility')
@@ -244,7 +305,6 @@ class LightItem(QtWidgets.QWidget):
         self.set_attribute_value(self.shape_name, "intensity", self.intensity_dsb.value())
         
     def set_color(self, color):
-        print("set_color {}".format(color))
         self.set_attribute_value(self.shape_name, "color", color.redF(), color.greenF(), color.blueF()) # send colors as a floats
         
     def set_emit_diffuse(self, checked):
@@ -254,12 +314,19 @@ class LightItem(QtWidgets.QWidget):
         self.set_attribute_value(self.shape_name, "emitSpecular", checked)
         
     def on_node_deleted(self):
-        """ Calls emit signal when light (node) is deleted """
+        """
+        Calls emit signal when light (node) is deleted
+        Returns: None
+
+        """
         self.node_deleted.emit(self.shape_name)
         
     def on_name_changed(self):
-        """ Called when light name is changed in Maya """
-        print("on_name_changed")
+        """
+        Called when light name is changed in Maya
+        Returns: None, calls updating value function
+
+        """
         self.shape_name = cmds.ls(self.uuid)[0] # get new shape name via uuid
         self.update_values() # set new name
         
@@ -268,7 +335,11 @@ class LightItem(QtWidgets.QWidget):
         self.script_jobs.append(cmds.scriptJob(attributeChange=("{}.{}".format(name, attribute), partial(self.update_values))))
 
     def create_script_jobs(self):
-        """ Create script jobs - on node deleted,... """
+        """
+        Create script jobs - on node deleted,...
+        Returns: None
+
+        """
         self.delete_script_jobs() #purge existing
         
         self.add_attribute_change_script_job(self.get_transform_name(), 'visibility')
@@ -286,7 +357,11 @@ class LightItem(QtWidgets.QWidget):
         self.script_jobs.append(cmds.scriptJob(nodeNameChanged=(self.shape_name, partial(self.on_name_changed))))
         
     def delete_script_jobs(self):
-        """ Loops through existing script jobs, kills them via command """
+        """
+        Loops through existing script jobs, kills them via command, clears 'self.script_jobs'
+        Returns: None
+
+        """
         for script_number in self.script_jobs:
             # node could be deleted outside, script job gets deleted automatically
             # evalDeferred let Maya delete object first
@@ -295,7 +370,7 @@ class LightItem(QtWidgets.QWidget):
         self.script_jobs = []
 
 class LightPanel(QtWidgets.QDialog):
-
+    """Main content dialog"""
     WINDOW_TITLE = "Light Panel"
 
     def __init__(self, parent=maya_main_window()):
@@ -317,10 +392,19 @@ class LightPanel(QtWidgets.QDialog):
         self.create_connections()
 
     def create_widgets(self):
+        """
+        Creates all widgets
+        Returns: None
+
+        """
         self.refreshButton = QtWidgets.QPushButton("Refresh Lights")
 
     def create_layout(self):
-        # header
+        """
+        All layout stuff
+        Returns: None
+
+        """
         header_layout = QtWidgets.QHBoxLayout()
         header_layout.addSpacing(100)
         header_layout.addWidget(QtWidgets.QLabel("Light"))
@@ -358,16 +442,27 @@ class LightPanel(QtWidgets.QDialog):
         main_layout.addLayout(button_layout)
 
     def create_connections(self):
+        """
+        All connection from widgets to callbacks
+        Returns: None
+
+        """
         self.refreshButton.clicked.connect(self.refresh_lights)
-        
-    
+
     def get_lights_in_scene(self): 
-        """ Use Maya command to get list of lights in the scene """
+        """
+        Use Maya command to get list of lights in the scene
+        Returns: list of ligts returned by 'ls' command
+
+        """
         return cmds.ls(type='light')
-        
 
     def refresh_lights(self):
-        """ Redo list of all lists in dialog """
+        """
+        Redo list of all lists in dialog
+        Returns: None
+
+        """
         self.clear_lights()
         
         lights = self.get_lights_in_scene()
@@ -380,7 +475,11 @@ class LightPanel(QtWidgets.QDialog):
                 self.light_layout.addWidget(light_item)
 
     def clear_lights(self):
-        """ Clear list of lists, should be called before refresh to purge list of lights """
+        """
+        Clears list of lists, should be called before refresh to purge list of lights
+        Returns: None
+
+        """
         for light in self.light_items:# delete all existing script job for light
             light.delete_script_jobs()
         
@@ -394,12 +493,22 @@ class LightPanel(QtWidgets.QDialog):
                     wdg.deleteLater()
                     
     def create_script_jobs(self):
-        """ Called to create 2 script jobs """
+        """
+        Called to create 2 script jobs for callbacks.
+        Implemented function in this class are called if particular events are triggered in Maya
+        Returns: None
+
+        """
         self.script_jobs.append(cmds.scriptJob(event=["DagObjectCreated", partial(self.on_dag_object_created)]))#script job created when new object
         self.script_jobs.append(cmds.scriptJob(event=["Undo", partial(self.on_undo)]))
         
     def delete_script_jobs(self):
-        """ Loops through existing script jobs, kills them via command """
+        """
+        Loops through existing script jobs, kills them via command.
+        All unneeded script jobs should be cleaned when dialog is closed.
+        Returns: None
+
+        """
         for script_number in self.script_jobs:
             cmds.scriptJob(kill=script_number)
             
@@ -412,20 +521,29 @@ class LightPanel(QtWidgets.QDialog):
             print("New light created")
             
     def on_undo(self):
-        """ Called via scriptJob when undo pressed """
+        """
+        Called via scriptJob when undo pressed
+        Returns: None
+
+        """
         if len(self.light_items) != len(cmds.ls(type="light")):
             self.refresh_lights()
-            print("Undo light created")
             
     def on_node_deleted(self):
-        """ Slot called by LightItem.on_node_deleted """
+        """
+        Slot called by LightItem.on_node_deleted
+        Returns: None
+
+        """
         self.refresh_lights()
         
     # called when Dialog shown (even for the first time)
+    # override
     def showEvent(self, event):
         self.create_script_jobs()
         self.refresh_lights()
 
+    # override
     def closeEvent(self, event):
         """ Called when dialog is closed - hidden """
         self.delete_script_jobs()
