@@ -6,7 +6,11 @@ import shutil
 from datetime import datetime
 
 class AssetViewer(QtWidgets.QWidget):
-
+    '''
+    Small editor that loads metadata information from json file, parses them and fills form.
+    Shows preview of an image that holds that metadata.
+    Stores updated metadata in .json file
+    '''
     IMAGE_WIDTH = 400
     IMAGE_HEIGHT = IMAGE_WIDTH / 1.77778
 
@@ -32,10 +36,8 @@ class AssetViewer(QtWidgets.QWidget):
         self.asset_list_cmb  = QtWidgets.QComboBox()
 
         self.image_preview_lbl = QtWidgets.QLabel()
-        #self.image_preview_lbl.setFixedHeight(self.IMAGE_WIDTH)
+        self.image_preview_lbl.setFixedHeight(self.IMAGE_WIDTH)
         self.image_preview_lbl.setFixedHeight(self.IMAGE_HEIGHT)
-
-        print("width {}".format(self.image_preview_lbl.width()))
 
         self.name_le = QtWidgets.QLineEdit()
         self.description_ple = QtWidgets.QPlainTextEdit()
@@ -105,11 +107,9 @@ class AssetViewer(QtWidgets.QWidget):
     def load_image_preview(self, file_name):
         """ loads PixMap of file_name to QLabel """
         img_url = "{}/{}".format(self.ASSET_DIR_PATH, file_name)
-        print("img_url {}".format(img_url))
         file_info = QtCore.QFileInfo(img_url)
         if file_info:
             image = QtGui.QImage(img_url)
-            print("width load_image_preview {}".format(self.image_preview_lbl.width()))
             image.scaled(self.image_preview_lbl.width(), self.image_preview_lbl.height(), QtCore.Qt.KeepAspectRatio,
                          QtCore.Qt.SmoothTransformation)
 
@@ -143,7 +143,7 @@ class AssetViewer(QtWidgets.QWidget):
             os.remove(url + '.tmp')
 
 if __name__ == "__main__":
-    app = QtWidgets.QApplication(sys.argv)
+    app = QtWidgets.QApplication()
 
     window = AssetViewer()
     window.show()
